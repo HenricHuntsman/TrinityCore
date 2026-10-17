@@ -301,7 +301,7 @@ void Garrison::Leave() const
 
 GarrisonFactionIndex Garrison::GetFaction() const
 {
-    return _owner->GetTeam() == HORDE ? GARRISON_FACTION_INDEX_HORDE : GARRISON_FACTION_INDEX_ALLIANCE;
+    return GetFaction(_owner->GetTeam());
 }
 
 std::vector<Garrison::Plot*> Garrison::GetPlots()
@@ -530,20 +530,15 @@ Garrison::Follower const* Garrison::GetFollower(uint64 dbId) const
     return nullptr;
 }
 
-void Garrison::SendInfo()
+void Garrison::BuildInfoPacket(WorldPackets::Garrison::GarrisonInfo& garrison) const
 {
-    WorldPackets::Garrison::GetGarrisonInfoResult garrisonInfo;
-    garrisonInfo.FactionIndex = GetFaction();
-    garrisonInfo.Garrisons.emplace_back();
-
-    WorldPackets::Garrison::GarrisonInfo& garrison = garrisonInfo.Garrisons.back();
     garrison.GarrTypeID = GetType();
     garrison.GarrSiteID = _siteLevel->GarrSiteID;
     garrison.GarrSiteLevelID = _siteLevel->ID;
     garrison.NumFollowerActivationsRemaining = _followerActivationsRemainingToday;
     for (auto& p : _plots)
     {
-        Plot& plot = p.second;
+        Plot const& plot = p.second;
         garrison.Plots.push_back(&plot.PacketInfo);
         if (plot.BuildingInfo.PacketInfo)
             garrison.Buildings.push_back(&*plot.BuildingInfo.PacketInfo);
@@ -551,8 +546,6 @@ void Garrison::SendInfo()
 
     for (auto const& p : _followers)
         garrison.Followers.push_back(&p.second.PacketInfo);
-
-    _owner->SendDirectMessage(garrisonInfo.Write());
 }
 
 void Garrison::SendRemoteInfo() const
@@ -728,7 +721,7 @@ GameObject* Garrison::Plot::CreateGameObject(Map* map, GarrisonFactionIndex fact
         if (FinalizeGarrisonPlotGOInfo const* finalizeInfo = sGarrisonMgr.GetPlotFinalizeGOInfo(PacketInfo.GarrPlotInstanceID))
         {
             Position const& pos2 = finalizeInfo->FactionInfo[faction].Pos;
-            if (GameObject* finalizer = GameObject::CreateGameObject(finalizeInfo->FactionInfo[faction].GameObjectId, map, pos2, QuaternionData::fromEulerAnglesZYX(pos2.GetOrientation(), 0.0f, 0.0f), 255, GO_STATE_READY))
+            if (GameObject* finalizer = GameObject::CreateGameObject(finalizeInfo->FactionInfo[faction].GameObjectId, map, pos2, QuaternionData::fromOrientation(pos2.GetOrientation()), 255, GO_STATE_READY))
             {
                 // set some spell id to make the object delete itself after use
                 finalizer->SetSpellId(finalizer->GetGOInfo()->goober.spell);
@@ -744,9 +737,9 @@ GameObject* Garrison::Plot::CreateGameObject(Map* map, GarrisonFactionIndex fact
 
     if (building->GetGoType() == GAMEOBJECT_TYPE_GARRISON_BUILDING && building->GetGOInfo()->garrisonBuilding.SpawnMap)
     {
-        if (CellObjectGuidsMap const* cells = sObjectMgr->GetMapObjectGuids(building->GetGOInfo()->garrisonBuilding.SpawnMap, map->GetDifficultyID()))
+        if (GridObjectGuidsMap const* grids = sObjectMgr->GetMapObjectGuids(building->GetGOInfo()->garrisonBuilding.SpawnMap, map->GetDifficultyID()))
         {
-            for (auto const& [cellId, guids] : *cells)
+            for (auto const& [gridId, guids] : *grids)
             {
                 for (ObjectGuid::LowType spawnId : guids.gameobjects)
                     if (GameObject* spawn = BuildingSpawnHelper<GameObject, &GameObject::RelocateStationaryPosition>(building, spawnId, map))

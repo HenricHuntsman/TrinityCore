@@ -19,6 +19,8 @@
 #define TRINITYCORE_SPELL_PACKETS_H
 
 #include "CombatLogPacketsCommon.h"
+#include "CraftingPacketsCommon.h"
+#include "ItemPacketsCommon.h"
 #include "MovementInfo.h"
 #include "ObjectGuid.h"
 #include "Optional.h"
@@ -137,7 +139,7 @@ namespace WorldPackets
         class SetActionButton final : public ClientPacket
         {
         public:
-            explicit SetActionButton(WorldPacket&& packet) : ClientPacket(CMSG_SET_ACTION_BUTTON, std::move(packet)) {}
+            explicit SetActionButton(WorldPacket&& packet) : ClientPacket(CMSG_SET_ACTION_BUTTON, std::move(packet)) { }
 
             void Read() override;
 
@@ -203,8 +205,10 @@ namespace WorldPackets
         struct SpellTargetData
         {
             uint32 Flags = 0;
+            bool HousingIsResident = false;
             ObjectGuid Unit;
             ObjectGuid Item;
+            ObjectGuid HousingGUID;
             Optional<TargetLocation> SrcLocation;
             Optional<TargetLocation> DstLocation;
             Optional<float> Orientation;
@@ -227,9 +231,9 @@ namespace WorldPackets
 
         struct SpellCraftingReagent
         {
-            int32 ItemID = 0;
-            int32 DataSlotIndex = 0;
+            int32 Slot = 0;
             int32 Quantity = 0;
+            Crafting::CraftingReagentBase Reagent;
             Optional<uint8> Source;
         };
 
@@ -246,16 +250,17 @@ namespace WorldPackets
             SpellCastVisual Visual;
             uint8 SendCastFlags = 0;
             SpellTargetData Target;
+            Optional<Duration<Milliseconds, uint32>> ReceiveTime;
             MissileTrajectoryRequest MissileTrajectory;
             Optional<MovementInfo> MoveUpdate;
             std::vector<SpellWeight> Weight;
-            Array<SpellCraftingReagent, 6> OptionalReagents;
-            Array<SpellCraftingReagent, 6> RemovedModifications;
-            Array<SpellExtraCurrencyCost, 5 /*MAX_ITEM_EXT_COST_CURRENCIES*/> OptionalCurrencies;
+            Array<SpellCraftingReagent, 6> CraftingReagents;
+            Array<SpellCraftingReagent, 6> RemovedReagents;
+            Array<SpellExtraCurrencyCost, 5 /*MAX_ITEM_EXT_COST_CURRENCIES*/> ExtraCurrencyCosts;
             Optional<uint64> CraftingOrderID;
-            uint8 CraftingFlags = 0; // 1 = ApplyConcentration
+            uint8 CraftingCastFlags = 0; // 1 = ApplyConcentration
             ObjectGuid CraftingNPC;
-            int32 Misc[2] = { };
+            std::array<int32, 3> Misc = { };
         };
 
         class CastSpell final : public ClientPacket
@@ -417,7 +422,9 @@ namespace WorldPackets
 
             std::vector<LearnedSpellInfo> ClientLearnedSpellData;
             uint32 SpecializationID = 0;
+            int32 MinActionBarSlot = 0;                     ///< Where to start pushing spells on action bar
             bool SuppressMessaging = false;
+            bool TraitGrantedByAura = false;
         };
 
         class SupercededSpells final : public ServerPacket
@@ -433,7 +440,7 @@ namespace WorldPackets
         class SpellFailure final : public ServerPacket
         {
         public:
-            explicit SpellFailure() : ServerPacket(SMSG_SPELL_FAILURE, 16 + 4 + 8 + 2 + 16) { }
+            explicit SpellFailure() : ServerPacket(SMSG_SPELL_FAILURE, 16 + 4 + 8 + 2 + 16 + 16) { }
 
             WorldPacket const* Write() override;
 
@@ -442,12 +449,13 @@ namespace WorldPackets
             SpellCastVisual Visual;
             uint16 Reason   = 0;
             ObjectGuid CastID;
+            ObjectGuid FailedBy;            ///< Unit that caused the spell to fail, set for SPELL_FAILED_INTERRUPTED_COMBAT
         };
 
         class SpellFailedOther final : public ServerPacket
         {
         public:
-            explicit SpellFailedOther() : ServerPacket(SMSG_SPELL_FAILED_OTHER, 16 + 4 + 8 + 1 + 16) { }
+            explicit SpellFailedOther() : ServerPacket(SMSG_SPELL_FAILED_OTHER, 16 + 4 + 8 + 1 + 16 + 16) { }
 
             WorldPacket const* Write() override;
 
@@ -456,12 +464,13 @@ namespace WorldPackets
             SpellCastVisual Visual;
             uint8 Reason    = 0;
             ObjectGuid CastID;
+            ObjectGuid FailedBy;            ///< Unit that caused the spell to fail, set for SPELL_FAILED_INTERRUPTED_COMBAT
         };
 
         class TC_GAME_API CastFailed final : public ServerPacket
         {
         public:
-            explicit CastFailed() : ServerPacket(SMSG_CAST_FAILED, 4 + 4 + 4 + 4 + 1) { }
+            explicit CastFailed() : ServerPacket(SMSG_CAST_FAILED, 16 + 4 + 8 + 4 + 4 + 4 + 16) { }
 
             WorldPacket const* Write() override;
 
@@ -471,12 +480,13 @@ namespace WorldPackets
             int32 Reason              = 0;
             int32 FailedArg1          = -1;
             int32 FailedArg2          = -1;
+            ObjectGuid FailedBy;            ///< Unit that caused the spell to fail, set for SPELL_FAILED_INTERRUPTED_COMBAT
         };
 
         class TC_GAME_API PetCastFailed final : public ServerPacket
         {
         public:
-            explicit PetCastFailed() : ServerPacket(SMSG_PET_CAST_FAILED, 4 + 4 + 4 + 1) { }
+            explicit PetCastFailed() : ServerPacket(SMSG_PET_CAST_FAILED, 16+ 4 + 4 + 4 + 4) { }
 
             WorldPacket const* Write() override;
 
@@ -518,6 +528,7 @@ namespace WorldPackets
 
             std::vector<uint32> SpellID;
             bool SuppressMessaging = false;
+            bool TraitGrantedByAura = false;
         };
 
         class CooldownEvent final : public ServerPacket
@@ -791,13 +802,14 @@ namespace WorldPackets
         class SpellVisualLoadScreen final : public ServerPacket
         {
         public:
-            explicit SpellVisualLoadScreen(int32 spellVisualKitId, int32 delay) : ServerPacket(SMSG_SPELL_VISUAL_LOAD_SCREEN, 4 + 4),
-                SpellVisualKitID(spellVisualKitId), Delay(delay) { }
+            explicit SpellVisualLoadScreen() : ServerPacket(SMSG_SPELL_VISUAL_LOAD_SCREEN, 4 + 4 + 4 + 1) { }
 
             WorldPacket const* Write() override;
 
             int32 SpellVisualKitID = 0;
+            WorldPackets::Duration<Milliseconds, int32> Duration;
             int32 Delay = 0;
+            bool IsTransfer = false;
         };
 
         class CancelCast final : public ClientPacket
@@ -858,6 +870,7 @@ namespace WorldPackets
 
             ObjectGuid CasterGUID;
             int32 TimeRemaining = 0;
+            ObjectGuid FailedBy;            ///< Unit that caused the spell to fail, set for SPELL_FAILED_INTERRUPTED_COMBAT
         };
 
         class SpellEmpowerStart final : public ServerPacket
@@ -892,6 +905,7 @@ namespace WorldPackets
             Duration<Milliseconds, int32> TimeRemaining;
             std::vector<Duration<Milliseconds, uint32>> StageDurations;
             uint8 Status = 0;
+            ObjectGuid FailedBy;            ///< Unit that caused the spell to fail, set for SPELL_FAILED_INTERRUPTED_COMBAT
         };
 
         class SetEmpowerMinHoldStagePercent final : public ClientPacket
@@ -980,6 +994,7 @@ namespace WorldPackets
             void Read() override;
 
             ObjectGuid UnitGUID;
+            int32 DisplayID = 0;
         };
 
         class MirrorImageComponentedData final : public ServerPacket
@@ -993,7 +1008,7 @@ namespace WorldPackets
             ObjectGuid UnitGUID;
             int32 ChrModelID = 0;
             int32 SpellVisualKitID = 0;
-            int32 Unused_1115 = 0;
+            float DisplayScale = 1.0f;
             uint8 RaceID = 0;
             uint8 Gender = 0;
             uint8 ClassID = 0;

@@ -152,7 +152,7 @@ namespace VMAP
         auto instanceTree = iInstanceMapTrees.find(mapId);
         if (instanceTree != iInstanceMapTrees.end() && instanceTree->second)
         {
-            instanceTree->second->UnloadMapTile(x, y, this);
+            instanceTree->second->UnloadMapTile(x, y);
             if (instanceTree->second->numLoadedTiles() == 0)
                 instanceTree->second = nullptr;
         }
@@ -244,7 +244,7 @@ namespace VMAP
         InstanceTreeMap::const_iterator instanceTree = GetMapTree(mapId);
         if (instanceTree != iInstanceMapTrees.end())
         {
-            LocationInfo info;
+            StaticMapTreeLocationInfo info;
             G3D::Vector3 pos = convertPositionToInternalRep(x, y, z);
             if (instanceTree->second->GetLocationInfo(pos, info))
             {
@@ -254,7 +254,7 @@ namespace VMAP
                     uint32 liquidType = info.hitModel->GetLiquidType(); // entry from LiquidType.dbc
                     float liquidLevel;
                     if (!reqLiquidType || (GetLiquidFlagsPtr(liquidType) & *reqLiquidType))
-                        if (info.hitInstance->GetLiquidLevel(pos, info, liquidLevel))
+                        if (info.hitInstance->GetLiquidLevel(pos, info.hitModel, liquidLevel))
                             data.liquidInfo.emplace(liquidType, liquidLevel);
                 }
 
@@ -273,7 +273,7 @@ namespace VMAP
         std::shared_ptr<ManagedModel> worldmodel; // this is intentionally declared before lock so that it is destroyed after it to prevent deadlocks in releaseModelInstance
 
         //! Critical section, thread safe access to iLoadedModelFiles
-        std::lock_guard lock(LoadedModelFilesLock);
+        std::scoped_lock lock(LoadedModelFilesLock);
 
         auto& [key, model] = *iLoadedModelFiles.try_emplace(filename).first;
         worldmodel = model.lock();
@@ -296,7 +296,7 @@ namespace VMAP
     void VMapManager::releaseModelInstance(std::string const& filename)
     {
         //! Critical section, thread safe access to iLoadedModelFiles
-        std::lock_guard lock(LoadedModelFilesLock);
+        std::scoped_lock lock(LoadedModelFilesLock);
 
         TC_LOG_DEBUG("maps", "VMapManager: unloading file '{}'", filename);
 

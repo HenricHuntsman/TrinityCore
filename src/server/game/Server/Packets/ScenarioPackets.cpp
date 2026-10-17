@@ -44,7 +44,7 @@ WorldPacket const* ScenarioState::Write()
     _worldPacket << ScenarioGUID;
     _worldPacket << int32(ScenarioID);
     _worldPacket << int32(CurrentStep);
-    _worldPacket << uint32(DifficultyID);
+    _worldPacket << int16(DifficultyID);
     _worldPacket << uint32(WaveCurrent);
     _worldPacket << uint32(WaveMax);
     _worldPacket << uint32(TimerDuration);
@@ -54,20 +54,20 @@ WorldPacket const* ScenarioState::Write()
     _worldPacket << Size<uint32>(Spells);
     _worldPacket << PlayerGUID;
 
-    if (!PickedSteps.empty())
-        _worldPacket.append(PickedSteps.data(), PickedSteps.size());
-
-    _worldPacket << Bits<1>(ScenarioComplete);
-    _worldPacket.FlushBits();
-
     for (Achievement::CriteriaProgress const& progress : CriteriaProgress)
         _worldPacket << progress;
 
     for (BonusObjectiveData const& bonusObjective : BonusObjectives)
         _worldPacket << bonusObjective;
 
+    if (!PickedSteps.empty())
+        _worldPacket.append(PickedSteps.data(), PickedSteps.size());
+
     for (ScenarioSpellUpdate const& spell : Spells)
         _worldPacket << spell;
+
+    _worldPacket << Bits<1>(ScenarioComplete);
+    _worldPacket.FlushBits();
 
     return &_worldPacket;
 }

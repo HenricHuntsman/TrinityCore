@@ -123,6 +123,17 @@ namespace WorldPackets
             bool SuppressChatLog = false;
         };
 
+        class SetCurrencyFlags final : public ClientPacket
+        {
+        public:
+            explicit SetCurrencyFlags(WorldPacket&& packet) : ClientPacket(CMSG_SET_CURRENCY_FLAGS, std::move(packet)) { }
+
+            void Read() override;
+
+            uint32 CurrencyID = 0;
+            CurrencyDbFlags Flags = { };
+        };
+
         class SetSelection final : public ClientPacket
         {
         public:
@@ -257,7 +268,7 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            uint32 DifficultyID     = 0;
+            int16 DifficultyID      = 0;
             bool IsTournamentRealm  = false;
             bool XRealmPvpAlert     = false;
             bool BlockExitingLoadingScreen = false;     // when set to true, sending SMSG_UPDATE_OBJECT with CreateObject Self bit = true will not hide loading screen
@@ -265,6 +276,11 @@ namespace WorldPackets
             Optional<uint32> RestrictedAccountMaxLevel;
             Optional<uint64> RestrictedAccountMaxMoney;
             Optional<uint32> InstanceGroupSize;
+
+            ObjectGuid HouseGUID;
+            ObjectGuid HouseOwnerAccountGUID;
+            ObjectGuid HouseCosmeticOwnerGUID;
+            ObjectGuid NeighborhoodGUID;
         };
 
         class SetDungeonDifficulty final : public ClientPacket
@@ -274,7 +290,7 @@ namespace WorldPackets
 
             void Read() override;
 
-            uint32 DifficultyID = 0;
+            int16 DifficultyID = 0;
         };
 
         class SetRaidDifficulty final : public ClientPacket
@@ -285,7 +301,7 @@ namespace WorldPackets
             void Read() override;
 
             int32 Legacy = 0;
-            int32 DifficultyID = 0;
+            int16 DifficultyID = 0;
         };
 
         class DungeonDifficultySet final : public ServerPacket
@@ -295,7 +311,7 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            int32 DifficultyID = 0;
+            int16 DifficultyID = 0;
         };
 
         class RaidDifficultySet final : public ServerPacket
@@ -306,7 +322,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             int32 Legacy = 0;
-            int32 DifficultyID = 0;
+            int16 DifficultyID = 0;
         };
 
         class CorpseReclaimDelay : public ServerPacket
@@ -452,15 +468,15 @@ namespace WorldPackets
             explicit StartMirrorTimer() : ServerPacket(SMSG_START_MIRROR_TIMER, 1 + 4 + 4 + 4 + 4 + 1) { }
             explicit StartMirrorTimer(uint8 timer, int32 value, int32 maxValue, int32 scale, int32 spellID, bool paused)
                 : ServerPacket(SMSG_START_MIRROR_TIMER, 1 + 4 + 4 + 4 + 4 + 1),
-                Timer(timer), Scale(scale), MaxValue(maxValue), SpellID(spellID), Value(value), Paused(paused) { }
+                Timer(timer), Value(value), MaxValue(maxValue), Scale(scale), SpellID(spellID), Paused(paused) { }
 
             WorldPacket const* Write() override;
 
             uint8 Timer = 0;
-            int32 Scale = 0;
-            int32 MaxValue = 0;
-            int32 SpellID = 0;
             int32 Value = 0;
+            int32 MaxValue = 0;
+            int32 Scale = 0;
+            int32 SpellID = 0;
             bool Paused = false;
         };
 
@@ -565,7 +581,7 @@ namespace WorldPackets
 
         struct PhaseShiftDataPhase
         {
-            uint32 PhaseFlags = 0;
+            uint8 PhaseFlags = 0;
             uint16 Id = 0;
         };
 
