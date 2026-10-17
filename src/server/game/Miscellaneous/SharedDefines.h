@@ -94,11 +94,10 @@ enum Expansions
     EXPANSION_MISTS_OF_PANDARIA        = 4,
     EXPANSION_WARLORDS_OF_DRAENOR      = 5,
     EXPANSION_LEGION                   = 6,
-    EXPANSION_LEGION_REMIX             = 7,  // Special time-limited Legion Remix event
-    EXPANSION_BATTLE_FOR_AZEROTH       = 8,
-    EXPANSION_SHADOWLANDS              = 9,
-    EXPANSION_DRAGONFLIGHT             = 10,
-    EXPANSION_THE_WAR_WITHIN           = 11,
+    EXPANSION_BATTLE_FOR_AZEROTH       = 7,
+    EXPANSION_SHADOWLANDS              = 8,
+    EXPANSION_DRAGONFLIGHT             = 9,
+    EXPANSION_THE_WAR_WITHIN           = 10,
     MAX_EXPANSIONS,
 
     MAX_ACCOUNT_EXPANSIONS
@@ -124,8 +123,6 @@ constexpr uint32 GetMaxLevelForExpansion(uint32 expansion)
             return 40;
         case EXPANSION_LEGION:
             return 45;
-        case EXPANSION_LEGION_REMIX:
-            return 45; // Same as Legion, special event version
         case EXPANSION_BATTLE_FOR_AZEROTH:
             return 50;
         case EXPANSION_SHADOWLANDS:
