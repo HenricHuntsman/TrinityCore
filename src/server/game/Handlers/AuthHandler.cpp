@@ -54,7 +54,7 @@ void WorldSession::SendAuthResponse(uint32 code, bool queued, uint32 queuePos)
             for (auto&& templ : sCharacterTemplateDataStore->GetCharacterTemplates())
                 response.SuccessInfo->Templates.push_back(&templ.second);
 
-        response.SuccessInfo->AvailableClasses = &sObjectMgr->GetClassExpansionRequirements();
+        response.SuccessInfo->AvailableClasses = &sObjectMgr->GetRaceClassRequirements();
 
         // TEMPORARY - prevent creating characters in uncompletable zone
         // This has the side effect of disabling Exile's Reach choice clientside without actually forcing character templates
@@ -138,16 +138,26 @@ void WorldSession::SendFeatureSystemStatusGlueScreen()
         }, gameRule.Value);
     }
 
+    features.AvailableGameModeIDs.push_back(8); // GameMode.db2, standard
+
     SendPacket(features.Write());
 
     WorldPackets::System::MirrorVarSingle vars[] =
     {
         { "raidLockoutExtendEnabled"sv, "1"sv },
+        { "sellAllJunkEnabled"sv, "1"sv },
         { "bypassItemLevelScalingCode"sv, "0"sv },
         { "shop2Enabled"sv, "0"sv },
         { "bpayStoreEnable"sv, "0"sv },
         { "recentAlliesEnabledClient"sv, "0"sv },
         { "browserEnabled"sv, "0"sv },
+        { "housingEnableCreateGuildNeighborhood"sv, "0"sv },
+        { "housingEnableDeleteHouse"sv, "0"sv },
+        { "housingServiceEnabled"sv, "0"sv },
+        { "housingEnableMoveHouse"sv, "0"sv },
+        { "housingEnableCreateCharterNeighborhood"sv, "0"sv },
+        { "housingEnableBuyHouse"sv, "0"sv },
+        { "housingMarketEnabled"sv, "0"sv },
     };
 
     WorldPackets::System::MirrorVars variables;

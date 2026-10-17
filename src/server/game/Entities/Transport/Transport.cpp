@@ -16,6 +16,7 @@
  */
 
 #include "Transport.h"
+#include "AreaTrigger.h"
 #include "CellImpl.h"
 #include "DB2Stores.h"
 #include "GameEventSender.h"
@@ -29,6 +30,7 @@
 #include "Totem.h"
 #include "UpdateData.h"
 #include "Vehicle.h"
+#include "WorldPacket.h"
 #include <boost/dynamic_bitset.hpp>
 #include <sstream>
 
@@ -70,6 +72,7 @@ void TransportBase::UpdatePassengerPosition(Map* map, WorldObject* passenger, Po
             break;
         case TYPEID_AREATRIGGER:
             map->AreaTriggerRelocation(passenger->ToAreaTrigger(), x, y, z, o);
+            passenger->ToAreaTrigger()->RelocateStationaryPosition(position);
             break;
         default:
             break;
@@ -107,7 +110,7 @@ bool Transport::Create(ObjectGuid::LowType guidlow, uint32 entry, float x, float
         return false;
     }
 
-    Object::_Create(ObjectGuid::Create<HighGuid::Transport>(guidlow));
+    _Create(ObjectGuid::Create<HighGuid::Transport>(guidlow));
 
     GameObjectTemplate const* goinfo = sObjectMgr->GetGameObjectTemplate(entry);
     if (!goinfo)
@@ -523,6 +526,7 @@ void Transport::UpdatePosition(float x, float y, float z, float o)
 
     Relocate(x, y, z, o);
     m_stationaryPosition.SetOrientation(o);
+    SetLocalRotationAngles(o, 0.0f, 0.0f);
     UpdateModelPosition();
 
     UpdatePassengerPositions(_passengers);
@@ -548,11 +552,11 @@ void Transport::LoadStaticPassengers()
     if (!mapId)
         return;
 
-    CellObjectGuidsMap const* cells = sObjectMgr->GetMapObjectGuids(mapId, GetMap()->GetDifficultyID());
-    if (!cells)
+    GridObjectGuidsMap const* grids = sObjectMgr->GetMapObjectGuids(mapId, GetMap()->GetDifficultyID());
+    if (!grids)
         return;
 
-    for (auto const& [cellId, guids] : *cells)
+    for (auto const& [gridId, guids] : *grids)
     {
         // GameObjects on transport
         for (ObjectGuid::LowType spawnId : guids.gameobjects)
@@ -689,6 +693,8 @@ void Transport::UpdatePassengerPositions(PassengerSet const& passengers)
 
 void Transport::BuildUpdate(UpdateDataMapType& data_map)
 {
+    BuildUpdateChangesMask();
+
     for (MapReference const& playerReference : GetMap()->GetPlayers())
         if (playerReference.GetSource()->InSamePhase(this))
             BuildFieldsUpdate(playerReference.GetSource(), data_map);
