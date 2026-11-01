@@ -226,12 +226,24 @@ ByteBuffer& operator<<(ByteBuffer& data, GuildGuidLookupData const& lookupData)
     return data;
 }
 
+ByteBuffer& operator<<(ByteBuffer& data, HouseLookupData const& lookupData)
+{
+    data << lookupData.Guid;
+    data << SizedString::BitsSize<8>(lookupData.Name);
+    data.FlushBits();
+
+    data << SizedString::Data(lookupData.Name);
+
+    return data;
+}
+
 ByteBuffer& operator<<(ByteBuffer& data, NameCacheLookupResult const& result)
 {
     data << uint8(result.Result);
     data << result.Player;
     data << OptionalInit(result.Data);
     data << OptionalInit(result.GuildData);
+    data << OptionalInit(result.HouseData);
     data.FlushBits();
 
     if (result.Data)
@@ -239,6 +251,9 @@ ByteBuffer& operator<<(ByteBuffer& data, NameCacheLookupResult const& result)
 
     if (result.GuildData)
         data << *result.GuildData;
+
+    if (result.HouseData)
+        data << *result.HouseData;
 
     return data;
 }
@@ -345,6 +360,7 @@ WorldPacket const* QueryGameObjectResponse::Write()
             statsData.append(Stats.QuestItems.data(), Stats.QuestItems.size());
 
         statsData << int32(Stats.ContentTuningId);
+        statsData << int32(Stats.RequiredLevel);
     }
 
     _worldPacket << Size<uint32>(statsData);
@@ -411,12 +427,10 @@ WorldPacket const* QuestPOIQueryResponse::Write()
     _worldPacket << Size<int32>(QuestPOIDataStats);
     _worldPacket << Size<int32>(QuestPOIDataStats);
 
-    bool useCache = sWorld->getBoolConfig(CONFIG_CACHE_DATA_QUERIES);
-
     for (QuestPOIData const* questPOIData : QuestPOIDataStats)
     {
-        if (useCache)
-            _worldPacket.append(questPOIData->QueryDataBuffer);
+        if (!questPOIData->QueryDataBuffer.empty())
+            _worldPacket.append(questPOIData->QueryDataBuffer.data(), questPOIData->QueryDataBuffer.size());
         else
             _worldPacket << *questPOIData;
     }
@@ -494,8 +508,8 @@ WorldPacket const* QueryItemTextResponse::Write()
 {
     _worldPacket << Bits<1>(Valid);
     _worldPacket.FlushBits();
-    _worldPacket << Item;
     _worldPacket << Id;
+    _worldPacket << Item;
 
     return &_worldPacket;
 }
@@ -552,8 +566,6 @@ ByteBuffer& operator<<(ByteBuffer& data, TreasurePickerBonus const& treasurePick
     data << Size<uint32>(treasurePickerBonus.ItemPicks);
     data << Size<uint32>(treasurePickerBonus.CurrencyPicks);
     data << uint64(treasurePickerBonus.Gold);
-    data << Bits<1>(treasurePickerBonus.Context);
-    data.FlushBits();
 
     for (TreasurePickItem const& treasurePickerItem : treasurePickerBonus.ItemPicks)
         data << treasurePickerItem;
@@ -561,7 +573,10 @@ ByteBuffer& operator<<(ByteBuffer& data, TreasurePickerBonus const& treasurePick
     for (TreasurePickCurrency const& treasurePickCurrency : treasurePickerBonus.CurrencyPicks)
         data << treasurePickCurrency;
 
-    return data;
+    data << Bits<1>(treasurePickerBonus.Context);
+    data.FlushBits();
+
+   return data;
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, TreasurePickerPick const& treasurePickerPick)
@@ -571,8 +586,6 @@ ByteBuffer& operator<<(ByteBuffer& data, TreasurePickerPick const& treasurePicke
     data << uint64(treasurePickerPick.Gold);
     data << Size<uint32>(treasurePickerPick.Bonuses);
     data << int32(treasurePickerPick.Flags);
-    data << Bits<1>(treasurePickerPick.IsChoice);
-    data.FlushBits();
 
     for (TreasurePickItem const& treasurePickItem : treasurePickerPick.ItemPicks)
         data << treasurePickItem;
@@ -582,6 +595,9 @@ ByteBuffer& operator<<(ByteBuffer& data, TreasurePickerPick const& treasurePicke
 
     for (TreasurePickerBonus const& treasurePickerBonus : treasurePickerPick.Bonuses)
         data << treasurePickerBonus;
+
+    data << Bits<1>(treasurePickerPick.IsChoice);
+    data.FlushBits();
 
     return data;
 }

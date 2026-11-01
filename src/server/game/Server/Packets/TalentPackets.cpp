@@ -61,9 +61,6 @@ ByteBuffer& operator<<(ByteBuffer& data, ClassicTalentGroupInfo const& talentGro
     if (!talentGroupInfo.GlyphIDs.empty())
         data.append(talentGroupInfo.GlyphIDs.data(), talentGroupInfo.GlyphIDs.size());
 
-    data.WriteBit(talentGroupInfo.Unused1125);
-    data.FlushBits();
-
     return data;
 }
 
@@ -102,7 +99,7 @@ WorldPacket const* UpdateTalentData::Write()
             _worldPacket << talent;
 
         for (uint32 talent : talentGroupInfo.GlyphIDs)
-            _worldPacket << uint16(talent);
+            _worldPacket << uint32(talent);
     }
 
     return &_worldPacket;
@@ -128,6 +125,13 @@ void ConfirmRespecWipe::Read()
 {
     _worldPacket >> RespecMaster;
     _worldPacket >> RespecType;
+}
+
+WorldPacket const* TalentsInvoluntarilyReset::Write()
+{
+    _worldPacket << Bits<1>(IsPetTalents);
+
+    return &_worldPacket;
 }
 
 WorldPacket const* LearnTalentFailed::Write()

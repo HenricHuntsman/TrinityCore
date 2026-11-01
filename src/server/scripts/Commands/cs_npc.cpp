@@ -64,7 +64,7 @@ class npc_commandscript : public CommandScript
 public:
     npc_commandscript() : CommandScript("npc_commandscript") { }
 
-    ChatCommandTable GetCommands() const override
+    std::span<ChatCommandBuilder const> GetCommands() const override
     {
         static ChatCommandTable npcAddCommandTable =
         {
@@ -144,11 +144,10 @@ public:
             return true;
         }
 
-        Creature* creature = Creature::CreateCreature(id, map, chr->GetPosition());
+        Creature* creature = Creature::CreateCreature(id, map, chr->GetPosition(), InitialPhaseShift(chr));
         if (!creature)
             return false;
 
-        PhasingHandler::InheritPhaseShift(creature, chr);
         creature->SaveToDB(map->GetId(), { map->GetDifficultyID() });
 
         ObjectGuid::LowType db_guid = creature->GetSpawnId();
@@ -1122,17 +1121,11 @@ public:
         // set pet to defensive mode by default (some classes can't control controlled pets in fact).
         pet->SetReactState(REACT_DEFENSIVE);
 
-        // calculate proper level
-        uint8 level = std::max<uint8>(player->GetLevel()-5, creatureTarget->GetLevel());
-
-        // prepare visual effect for levelup
-        pet->SetLevel(level - 1);
-
         // add to world
         pet->GetMap()->AddToMap(pet->ToCreature());
 
         // visual effect for levelup
-        pet->SetLevel(level);
+        pet->SendNewlyTamed();
 
         // caster have pet now
         player->SetMinion(pet, true);

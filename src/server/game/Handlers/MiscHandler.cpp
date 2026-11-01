@@ -87,19 +87,9 @@ void WorldSession::HandleWhoOpcode(WorldPackets::Who::WhoRequestPkt& whoRequest)
 {
     WorldPackets::Who::WhoRequest& request = whoRequest.Request;
 
-    TC_LOG_DEBUG("network", "WorldSession::HandleWhoOpcode: MinLevel: {}, MaxLevel: {}, Name: {} (VirtualRealmName: {}), Guild: {} (GuildVirtualRealmName: {}), RaceFilter: {}, ClassFilter: {}, Areas: {}, Words: {}.",
+    TC_LOG_DEBUG("network", "WorldSession::HandleWhoOpcode: MinLevel: {}, MaxLevel: {}, Name: {} (VirtualRealmName: {}), Guild: {} (GuildVirtualRealmName: {}), RaceFilter: 0x{:X}{:08X}, ClassFilter: {}, Areas: {}, Words: {}.",
         request.MinLevel, request.MaxLevel, request.Name, request.VirtualRealmName, request.Guild, request.GuildVirtualRealmName,
-        request.RaceFilter.RawValue, request.ClassFilter, whoRequest.Areas.size(), request.Words.size());
-
-    // zones count, client limit = 10 (2.0.10)
-    // can't be received from real client or broken packet
-    if (whoRequest.Areas.size() > 10)
-        return;
-
-    // user entered strings count, client limit=4 (checked on 2.0.10)
-    // can't be received from real client or broken packet
-    if (request.Words.size() > 4)
-        return;
+        request.RaceFilter.RawValue[1], request.RaceFilter.RawValue[0], request.ClassFilter, whoRequest.Areas.size(), request.Words.size());
 
     /// @todo: handle following packet values
     /// VirtualRealmNames
@@ -159,7 +149,7 @@ void WorldSession::HandleWhoOpcode(WorldPackets::Who::WhoRequestPkt& whoRequest)
                 continue;
 
         // check if target's level is in level range
-        uint8 lvl = target.GetLevel();
+        int32 lvl = target.GetLevel();
         if (lvl < request.MinLevel || lvl > request.MaxLevel)
             continue;
 
@@ -172,10 +162,8 @@ void WorldSession::HandleWhoOpcode(WorldPackets::Who::WhoRequestPkt& whoRequest)
             continue;
 
         if (!whoRequest.Areas.empty())
-        {
-            if (std::find(whoRequest.Areas.begin(), whoRequest.Areas.end(), int32(target.GetZoneId())) == whoRequest.Areas.end())
+            if (std::ranges::find(whoRequest.Areas, int32(target.GetZoneId())) == whoRequest.Areas.end())
                 continue;
-        }
 
         std::wstring const& wTargetName = target.GetWidePlayerName();
         if (!(wPlayerName.empty() || wTargetName.find(wPlayerName) != std::wstring::npos))
@@ -599,7 +587,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
         return;
 
     bool teleported = false;
-    if (player->GetMapId() != at->target_mapId)
+    if (player->GetMapId() != at->Loc.GetMapId())
     {
         if (!player->IsAlive())
         {
@@ -609,7 +597,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
                 uint32 corpseMap = player->GetCorpseLocation().GetMapId();
                 do
                 {
-                    if (corpseMap == at->target_mapId)
+                    if (corpseMap == at->Loc.GetMapId())
                         break;
 
                     InstanceTemplate const* corpseInstance = sObjectMgr->GetInstanceTemplate(corpseMap);
@@ -622,52 +610,56 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
                     return;
                 }
 
-                TC_LOG_DEBUG("maps", "MAP: Player '{}' has corpse in instance {} and can enter.", player->GetName(), at->target_mapId);
+                TC_LOG_DEBUG("maps", "MAP: Player '{}' has corpse in instance {} and can enter.", player->GetName(), at->Loc.GetMapId());
             }
             else
+            {
                 TC_LOG_DEBUG("maps", "Map::CanPlayerEnter - player '{}' is dead but does not have a corpse!", player->GetName());
+                SendPacket(WorldPackets::AreaTrigger::AreaTriggerNoCorpse().Write());
+                return;
+            }
         }
 
-        if (TransferAbortParams denyReason = Map::PlayerCannotEnter(at->target_mapId, player))
+        if (TransferAbortParams denyReason = Map::PlayerCannotEnter(at->Loc.GetMapId(), player))
         {
             switch (denyReason.Reason)
             {
                 case TRANSFER_ABORT_MAP_NOT_ALLOWED:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' attempted to enter map with id {} which has no entry", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' attempted to enter map with id {} which has no entry", player->GetName(), at->Loc.GetMapId());
                     break;
                 case TRANSFER_ABORT_DIFFICULTY:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' attempted to enter instance map {} but the requested difficulty was not found", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' attempted to enter instance map {} but the requested difficulty was not found", player->GetName(), at->Loc.GetMapId());
                     break;
                 case TRANSFER_ABORT_NEED_GROUP:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' must be in a raid group to enter map {}", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' must be in a raid group to enter map {}", player->GetName(), at->Loc.GetMapId());
                     player->SendRaidGroupOnlyMessage(RAID_GROUP_ERR_ONLY, 0);
                     break;
                 case TRANSFER_ABORT_LOCKED_TO_DIFFERENT_INSTANCE:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because their permanent bind is incompatible with their group's", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because their permanent bind is incompatible with their group's", player->GetName(), at->Loc.GetMapId());
                     break;
                 case TRANSFER_ABORT_ALREADY_COMPLETED_ENCOUNTER:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because their permanent bind is incompatible with their group's", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because their permanent bind is incompatible with their group's", player->GetName(), at->Loc.GetMapId());
                     break;
                 case TRANSFER_ABORT_TOO_MANY_INSTANCES:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because he has exceeded the maximum number of instances per hour.", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because he has exceeded the maximum number of instances per hour.", player->GetName(), at->Loc.GetMapId());
                     break;
                 case TRANSFER_ABORT_MAX_PLAYERS:
                     break;
                 case TRANSFER_ABORT_ZONE_IN_COMBAT:
                     break;
                 case TRANSFER_ABORT_NOT_FOUND:
-                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because instance is resetting.", player->GetName(), at->target_mapId);
+                    TC_LOG_DEBUG("maps", "MAP: Player '{}' cannot enter instance map {} because instance is resetting.", player->GetName(), at->Loc.GetMapId());
                     break;
                 default:
                     break;
             }
 
             if (denyReason.Reason != TRANSFER_ABORT_NEED_GROUP)
-                player->SendTransferAborted(at->target_mapId, denyReason.Reason, denyReason.Arg, denyReason.MapDifficultyXConditionId);
+                player->SendTransferAborted(at->Loc.GetMapId(), denyReason.Reason, denyReason.Arg, denyReason.MapDifficultyXConditionId);
 
             if (!player->IsAlive() && player->HasCorpse())
             {
-                if (player->GetCorpseLocation().GetMapId() == at->target_mapId)
+                if (player->GetCorpseLocation().GetMapId() == at->Loc.GetMapId())
                 {
                     player->ResurrectPlayer(0.5f);
                     player->SpawnCorpseBones();
@@ -684,11 +676,11 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPackets::AreaTrigger::AreaTrigge
 
     if (!teleported)
     {
-        WorldSafeLocsEntry const* entranceLocation = player->GetInstanceEntrance(at->target_mapId);
-        if (entranceLocation && player->GetMapId() != at->target_mapId)
+        WorldSafeLocsEntry const* entranceLocation = player->GetInstanceEntrance(at->Loc.GetMapId());
+        if (entranceLocation && player->GetMapId() != at->Loc.GetMapId())
             player->TeleportTo(entranceLocation->Loc, TELE_TO_NOT_LEAVE_TRANSPORT);
         else
-            player->TeleportTo(at->target_mapId, at->target_X, at->target_Y, at->target_Z, at->target_Orientation, TELE_TO_NOT_LEAVE_TRANSPORT);
+            player->TeleportTo(at->Loc, TELE_TO_NOT_LEAVE_TRANSPORT);
     }
 }
 
@@ -953,10 +945,6 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPackets::Misc::SetDunge
         return;
     }
 
-    Difficulty difficultyID = Difficulty(difficultyEntry->ID);
-    if (difficultyID == _player->GetDungeonDifficultyID())
-        return;
-
     // cannot reset while in an instance
     Map* map = _player->FindMap();
     if (map && map->Instanceable())
@@ -966,9 +954,14 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPackets::Misc::SetDunge
         return;
     }
 
+    Difficulty difficultyID = Difficulty(difficultyEntry->ID);
+
     Group* group = _player->GetGroup();
     if (group)
     {
+        if (difficultyID == group->GetDungeonDifficultyID())
+            return;
+
         if (!group->IsLeader(_player->GetGUID()))
             return;
 
@@ -979,12 +972,15 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPackets::Misc::SetDunge
         group->ResetInstances(InstanceResetMethod::OnChangeDifficulty, _player);
         group->SetDungeonDifficultyID(difficultyID);
     }
-    else
-    {
+
+    if (difficultyID == _player->GetDungeonDifficultyID())
+        return;
+
+    if (!group)
         _player->ResetInstances(InstanceResetMethod::OnChangeDifficulty);
-        _player->SetDungeonDifficultyID(difficultyID);
-        _player->SendDungeonDifficulty();
-    }
+
+    _player->SetDungeonDifficultyID(difficultyID);
+    _player->SendDungeonDifficulty();
 }
 
 void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDifficulty& setRaidDifficulty)
@@ -1018,10 +1014,6 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDiff
         return;
     }
 
-    Difficulty difficultyID = Difficulty(difficultyEntry->ID);
-    if (difficultyID == (setRaidDifficulty.Legacy ?  _player->GetLegacyRaidDifficultyID() : _player->GetRaidDifficultyID()))
-        return;
-
     // cannot reset while in an instance
     Map* map = _player->FindMap();
     if (map && map->Instanceable())
@@ -1031,9 +1023,14 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDiff
         return;
     }
 
+    Difficulty difficultyID = Difficulty(difficultyEntry->ID);
+
     Group* group = _player->GetGroup();
     if (group)
     {
+        if (difficultyID == (setRaidDifficulty.Legacy ? group->GetLegacyRaidDifficultyID() : group->GetRaidDifficultyID()))
+            return;
+
         if (!group->IsLeader(_player->GetGUID()))
             return;
 
@@ -1047,16 +1044,19 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPackets::Misc::SetRaidDiff
         else
             group->SetRaidDifficultyID(difficultyID);
     }
-    else
-    {
-        _player->ResetInstances(InstanceResetMethod::OnChangeDifficulty);
-        if (setRaidDifficulty.Legacy)
-            _player->SetLegacyRaidDifficultyID(difficultyID);
-        else
-            _player->SetRaidDifficultyID(difficultyID);
 
-        _player->SendRaidDifficulty(setRaidDifficulty.Legacy != 0);
-    }
+    if (difficultyID == (setRaidDifficulty.Legacy ? _player->GetLegacyRaidDifficultyID() : _player->GetRaidDifficultyID()))
+        return;
+
+    if (!group)
+        _player->ResetInstances(InstanceResetMethod::OnChangeDifficulty);
+
+    if (setRaidDifficulty.Legacy)
+        _player->SetLegacyRaidDifficultyID(difficultyID);
+    else
+        _player->SetRaidDifficultyID(difficultyID);
+
+    _player->SendRaidDifficulty(setRaidDifficulty.Legacy != 0);
 }
 
 void WorldSession::HandleSetTaxiBenchmark(WorldPackets::Misc::SetTaxiBenchmarkMode& packet)
@@ -1221,4 +1221,9 @@ void WorldSession::HandleQueryCountdownTimer(WorldPackets::Misc::QueryCountdownT
     startTimer.TotalTime = info->GetTotalTime();
 
     _player->SendDirectMessage(startTimer.Write());
+}
+
+void WorldSession::HandleSetCurrencyFlags(WorldPackets::Misc::SetCurrencyFlags const& setCurrenctFlags)
+{
+    _player->SetCurrencyFlagsFromClient(setCurrenctFlags.CurrencyID, setCurrenctFlags.Flags);
 }

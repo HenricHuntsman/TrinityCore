@@ -7,3 +7,9 @@ Restored the existing branch's canonical values: BFA 7, Shadowlands 8, Dragonfli
 Validation: a C++17 syntax-only harness compiled the actual enum and level function with static assertions for these IDs and The War Within maximum level 80. The current upstream version was separately checked for Midnight ID 11 / level 90. This is a targeted contract check, not a full TrinityCore build, database migration or game-server runtime test.
 
 The fork was 1,542 upstream commits behind at review time. Full upstream synchronisation remains a separate candidate and must retain this note.
+
+This upstream update candidate includes the current upstream Midnight mapping. The canonical BFA-through-TWW IDs remain unchanged; the standalone Remix insertion is not reapplied.
+
+## 1 November 2026 candidate
+
+Refreshed to upstream `761b1a2f5f12744568befb9b94739d97167f0c84`. Both recovery files are preserved; source outside these documents matches that pinned upstream tree. The canonical expansion-ID and level contract is rechecked; a full server build and database/runtime qualification remain pending.
