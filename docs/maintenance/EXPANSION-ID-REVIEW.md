@@ -9,3 +9,7 @@ Validation: a C++17 syntax-only harness compiled the actual enum and level funct
 The fork was 1,542 upstream commits behind at review time. Full upstream synchronisation remains a separate candidate and must retain this note.
 
 This upstream update candidate includes the current upstream Midnight mapping. The canonical BFA-through-TWW IDs remain unchanged; the standalone Remix insertion is not reapplied.
+
+## 1 November 2026 candidate
+
+Refreshed to upstream `761b1a2f5f12744568befb9b94739d97167f0c84`. Both recovery files are preserved; source outside these documents matches that pinned upstream tree. The canonical expansion-ID and level contract is rechecked; a full server build and database/runtime qualification remain pending.
