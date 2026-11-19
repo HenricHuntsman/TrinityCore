@@ -53,10 +53,11 @@ namespace WorldPackets
         };
 
         // CMSG_CHAT_MESSAGE_WHISPER
+        // CMSG_MESSAGE_WHISPER
         class ChatMessageWhisper final : public ClientPacket
         {
         public:
-            explicit ChatMessageWhisper(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_MESSAGE_WHISPER, std::move(packet)) { }
+            explicit ChatMessageWhisper(WorldPacket&& packet) : ClientPacket(std::move(packet)) { }
 
             void Read() override;
 
@@ -175,13 +176,14 @@ namespace WorldPackets
             std::string _Channel;   ///< Channel Name
             std::string ChatText;
             uint32 AchievementID = 0;
-            uint16 _ChatFlags = 0;   ///< @see enum ChatFlags
+            uint32 _ChatFlags = 0;   ///< @see enum ChatFlags
             float DisplayTime = 0.0f;
             int32 SpellID = 0;
             Optional<uint32> BroadcastTextID;
             bool HideChatLog = false;
             bool FakeSenderName = false;
             Optional<ObjectGuid> ChannelGUID;
+            Optional<uint32> EncounterEventID;
         };
 
         class Emote final : public ServerPacket

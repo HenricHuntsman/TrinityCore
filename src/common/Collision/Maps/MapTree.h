@@ -31,24 +31,21 @@ namespace VMAP
     enum class LoadResult : uint8;
     enum class ModelIgnoreFlags : uint32;
 
-    struct GroupLocationInfo
+    struct LocationInfo
     {
-        const GroupModel* hitModel = nullptr;
+        GroupModel const* hitModel = nullptr;
         int32 rootId = -1;
+        float ground_Z = -G3D::finf();
     };
 
-    struct TC_COMMON_API LocationInfo
+    struct StaticMapTreeLocationInfo : LocationInfo
     {
-        LocationInfo(): rootId(-1), hitInstance(nullptr), hitModel(nullptr), ground_Z(-G3D::finf()) { }
-        int32 rootId;
-        ModelInstance const* hitInstance;
-        GroupModel const* hitModel;
-        float ground_Z;
+        ModelInstance const* hitInstance = nullptr;
     };
 
     class TC_COMMON_API StaticMapTree
     {
-        typedef std::unordered_map<uint32, bool> loadedTileMap;
+        typedef std::unordered_map<uint32, std::vector<uint32>> loadedTileMap;
         private:
             uint32 iMapID;
             BIH iTree;
@@ -74,12 +71,12 @@ namespace VMAP
             bool isInLineOfSight(G3D::Vector3 const& pos1, G3D::Vector3 const& pos2, ModelIgnoreFlags ignoreFlags) const;
             bool getObjectHitPos(G3D::Vector3 const& pos1, G3D::Vector3 const& pos2, G3D::Vector3& pResultHitPos, float pModifyDist) const;
             float getHeight(G3D::Vector3 const& pPos, float maxSearchDist) const;
-            bool GetLocationInfo(G3D::Vector3 const& pos, LocationInfo& info) const;
+            bool GetLocationInfo(G3D::Vector3 const& pos, StaticMapTreeLocationInfo& info) const;
 
             LoadResult InitMap(std::string const& fname);
             void UnloadMap();
             LoadResult LoadMapTile(uint32 tileX, uint32 tileY, VMapManager* vm);
-            void UnloadMapTile(uint32 tileX, uint32 tileY, VMapManager* vm);
+            void UnloadMapTile(uint32 tileX, uint32 tileY);
             uint32 numLoadedTiles() const { return uint32(iLoadedTiles.size()); }
             std::span<ModelInstance const> getModelInstances() const;
 

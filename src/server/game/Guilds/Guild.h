@@ -108,7 +108,7 @@ enum GuildRankRights
     GR_RIGHT_OFFCHATSPEAK               = 0x00000008,
     GR_RIGHT_INVITE                     = 0x00000010,
     GR_RIGHT_REMOVE                     = 0x00000020,
-    GR_RIGHT_ROSTER                     = 0x00000040,
+    GR_RIGHT_LEAVE                      = 0x00000040,
     GR_RIGHT_PROMOTE                    = 0x00000080,
     GR_RIGHT_DEMOTE                     = 0x00000100,
     GR_RIGHT_UNK_200                    = 0x00000200,
@@ -252,7 +252,7 @@ struct GuildReward
 {
     uint32 ItemID;
     uint8 MinGuildRep;
-    Trinity::RaceMask<uint64> RaceMask;
+    Trinity::RaceMask<int32, 2> RaceMask;
     uint64 Cost;
     std::vector<uint32> AchievementsRequired;
 };
@@ -764,7 +764,7 @@ class TC_GAME_API Guild
 
         // Handle client commands
         void HandleRoster(WorldSession* session);
-        void SendQueryResponse(WorldSession* session);
+        void HandleQuery(WorldSession* session);
         void HandleSetAchievementTracking(WorldSession* session, uint32 const* achievementIdsBegin, uint32 const* achievementIdsEnd);
         void HandleGetAchievementMembers(WorldSession* session, uint32 achievementId) const;
         void HandleSetMOTD(WorldSession* session, std::string_view motd);
@@ -811,7 +811,7 @@ class TC_GAME_API Guild
         void SendEventBankMoneyChanged() const;
         void SendEventMOTD(WorldSession* session, bool broadcast = false) const;
         void SendEventNewLeader(Member* newLeader, Member* oldLeader, bool isSelfPromoted = false) const;
-        void SendEventPlayerLeft(Member* leaver, Member* remover = nullptr, bool isRemoved = false) const;
+        void SendEventPlayerLeft(Member const* leaver, Member const* remover = nullptr, bool isRemoved = false) const;
         void SendEventPresenceChanged(WorldSession* session, bool loggedOn, bool broadcast = false) const;
 
         // Load from DB
